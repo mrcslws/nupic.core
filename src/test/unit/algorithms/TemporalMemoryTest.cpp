@@ -1404,7 +1404,6 @@ namespace {
         tm2.connections.dataForSegment(activeSegments2[i]);
 
       ASSERT_EQ(segmentData1.cell, segmentData2.cell);
-      ASSERT_EQ(segmentData1.idxOnCell, segmentData2.idxOnCell);
     }
 
     const vector<Segment> matchingSegments1 = tm1.getMatchingSegments();
@@ -1418,7 +1417,6 @@ namespace {
         tm2.connections.dataForSegment(matchingSegments2[i]);
 
       ASSERT_EQ(segmentData1.cell, segmentData2.cell);
-      ASSERT_EQ(segmentData1.idxOnCell, segmentData2.idxOnCell);
     }
 
     ASSERT_EQ(tm1.getWinnerCells(), tm2.getWinnerCells());

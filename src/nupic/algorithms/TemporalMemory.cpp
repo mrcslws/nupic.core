@@ -846,10 +846,15 @@ void TemporalMemory::save(ostream& outStream) const
   outStream << activeSegments_.size() << " ";
   for (Segment segment : activeSegments_)
   {
-    const SegmentData& segmentData = connections.dataForSegment(segment);
+    const CellIdx cell = connections.cellForSegment(segment);
+    const vector<Segment>& segments = connections.segmentsForCell(cell);
 
-    outStream << segmentData.idxOnCell << " ";
-    outStream << segmentData.cell << " ";
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    outStream << idx << " ";
+    outStream << cell << " ";
     outStream << numActiveConnectedSynapsesForSegment_[segment.flatIdx] << " ";
   }
   outStream << endl;
@@ -857,10 +862,15 @@ void TemporalMemory::save(ostream& outStream) const
   outStream << matchingSegments_.size() << " ";
   for (Segment segment : matchingSegments_)
   {
-    const SegmentData& segmentData = connections.dataForSegment(segment);
+    const CellIdx cell = connections.cellForSegment(segment);
+    const vector<Segment>& segments = connections.segmentsForCell(cell);
 
-    outStream << segmentData.idxOnCell << " ";
-    outStream << segmentData.cell << " ";
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    outStream << idx << " ";
+    outStream << cell << " ";
     outStream << numActivePotentialSynapsesForSegment_[segment.flatIdx] << " ";
   }
   outStream << endl;
@@ -904,10 +914,15 @@ void TemporalMemory::write(TemporalMemoryProto::Builder& proto) const
   for (UInt i = 0; i < activeSegments_.size(); ++i)
   {
     const Segment segment = activeSegments_[i];
-    const SegmentData& segmentData = connections.dataForSegment(segment);
+    const CellIdx cell = connections.cellForSegment(segment);
+    const vector<Segment>& segments = connections.segmentsForCell(cell);
 
-    activeSegmentOverlaps[i].setCell(segmentData.cell);
-    activeSegmentOverlaps[i].setSegment(segmentData.idxOnCell);
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    activeSegmentOverlaps[i].setCell(cell);
+    activeSegmentOverlaps[i].setSegment(idx);
     activeSegmentOverlaps[i].setOverlap(
       numActiveConnectedSynapsesForSegment_[segment.flatIdx]);
   }
@@ -924,10 +939,15 @@ void TemporalMemory::write(TemporalMemoryProto::Builder& proto) const
   for (UInt i = 0; i < matchingSegments_.size(); ++i)
   {
     const Segment segment = matchingSegments_[i];
-    const SegmentData& segmentData = connections.dataForSegment(segment);
+    const CellIdx cell = connections.cellForSegment(segment);
+    const vector<Segment>& segments = connections.segmentsForCell(cell);
 
-    matchingSegmentOverlaps[i].setCell(segmentData.cell);
-    matchingSegmentOverlaps[i].setSegment(segmentData.idxOnCell);
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    matchingSegmentOverlaps[i].setCell(cell);
+    matchingSegmentOverlaps[i].setSegment(idx);
     matchingSegmentOverlaps[i].setOverlap(
       numActivePotentialSynapsesForSegment_[segment.flatIdx]);
   }

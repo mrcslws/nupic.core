@@ -108,14 +108,12 @@ namespace nupic
        *
        * @param permanence
        * Permanence of synapse.
-       *
        */
       struct SynapseData
       {
         CellIdx presynapticCell;
         Permanence permanence;
         Segment segment;
-        SynapseIdx idxOnSegment;
       };
 
       /**
@@ -130,22 +128,14 @@ namespace nupic
        * @param lastUsedIteration
        * The iteration that this segment was last used.
        *
-       * @param CellIdx
+       * @param cell
        * The cell that this segment is on.
-       *
-       * @param idxOnCell
-       * The segment's index on its cell. This is used when sorting segments. If
-       * segments were only sorted by cell, then different sort algorithms could
-       * lead to different results when the consumer is tie-breaking between
-       * segments.
-       *
        */
       struct SegmentData
       {
         std::vector<Synapse> synapses;
         Iteration lastUsedIteration;
         CellIdx cell;
-        SegmentIdx idxOnCell;
       };
 
       /**
@@ -583,17 +573,38 @@ namespace nupic
          */
         Segment leastRecentlyUsedSegment_(CellIdx cell) const;
 
-         /**
-          * Gets the synapse with the lowest permanence on the segment.
-          *
-          * @param segment Segment whose synapses to consider.
-          *
-          * @retval Synapse with the lowest permanence.
-          */
+        /**
+         * Gets the synapse with the lowest permanence on the segment.
+         *
+         * @param segment Segment whose synapses to consider.
+         *
+         * @retval Synapse with the lowest permanence.
+         */
         Synapse minPermanenceSynapse_(Segment segment) const;
 
+        /**
+         * Check whether this segment still exists on its cell.
+         *
+         * @param Segment
+         *
+         * @retval True if it's still in its cell's segment list.
+         */
         bool segmentExists_(Segment segment) const;
+
+        /**
+         * Check whether this synapse still exists on its segment.
+         *
+         * @param Synapse
+         *
+         * @retval True if it's still in its segment's synapse list.
+         */
         bool synapseExists_(Synapse synapse) const;
+
+        /**
+         * Remove a synapse from synapsesForPresynapticCell_.
+         *
+         * @param Synapse
+         */
         void removeSynapseFromPresynapticMap_(Synapse synapse);
 
       private:
@@ -605,6 +616,11 @@ namespace nupic
 
         // Extra bookkeeping for faster computing of segment activity.
         std::map<CellIdx, std::vector<Synapse> > synapsesForPresynapticCell_;
+
+        std::vector<UInt64> segmentOrdinals_;
+        std::vector<UInt64> synapseOrdinals_;
+        UInt64 nextSegmentOrdinal_;
+        UInt64 nextSynapseOrdinal_;
 
         SegmentIdx maxSegmentsPerCell_;
         SynapseIdx maxSynapsesPerSegment_;

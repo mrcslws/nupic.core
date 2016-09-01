@@ -1299,10 +1299,15 @@ void ExtendedTemporalMemory::save(ostream& outStream) const
   outStream << activeBasalSegments_.size() << " ";
   for (Segment segment : activeBasalSegments_)
   {
-    const SegmentData& segmentData = basalConnections.dataForSegment(segment);
+    const CellIdx cell = basalConnections.cellForSegment(segment);
+    const vector<Segment>& segments = basalConnections.segmentsForCell(cell);
 
-    outStream << segmentData.idxOnCell << " ";
-    outStream << segmentData.cell << " ";
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    outStream << idx << " ";
+    outStream << cell << " ";
     outStream << numActiveConnectedSynapsesForBasalSegment_[segment.flatIdx]
               << " ";
   }
@@ -1311,10 +1316,15 @@ void ExtendedTemporalMemory::save(ostream& outStream) const
   outStream << matchingBasalSegments_.size() << " ";
   for (Segment segment : matchingBasalSegments_)
   {
-    const SegmentData& segmentData = basalConnections.dataForSegment(segment);
+    const CellIdx cell = basalConnections.cellForSegment(segment);
+    const vector<Segment>& segments = basalConnections.segmentsForCell(cell);
 
-    outStream << segmentData.idxOnCell << " ";
-    outStream << segmentData.cell << " ";
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    outStream << idx << " ";
+    outStream << cell << " ";
     outStream << numActivePotentialSynapsesForBasalSegment_[segment.flatIdx]
               << " ";
   }
@@ -1323,10 +1333,15 @@ void ExtendedTemporalMemory::save(ostream& outStream) const
   outStream << activeApicalSegments_.size() << " ";
   for (Segment segment : activeApicalSegments_)
   {
-    const SegmentData& segmentData = apicalConnections.dataForSegment(segment);
+    const CellIdx cell = apicalConnections.cellForSegment(segment);
+    const vector<Segment>& segments = apicalConnections.segmentsForCell(cell);
 
-    outStream << segmentData.idxOnCell << " ";
-    outStream << segmentData.cell << " ";
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    outStream << idx << " ";
+    outStream << cell << " ";
     outStream << numActiveConnectedSynapsesForApicalSegment_[segment.flatIdx]
               << " ";
   }
@@ -1335,10 +1350,15 @@ void ExtendedTemporalMemory::save(ostream& outStream) const
   outStream << matchingApicalSegments_.size() << " ";
   for (Segment segment : matchingApicalSegments_)
   {
-    const SegmentData& segmentData = apicalConnections.dataForSegment(segment);
+    const CellIdx cell = apicalConnections.cellForSegment(segment);
+    const vector<Segment>& segments = apicalConnections.segmentsForCell(cell);
 
-    outStream << segmentData.idxOnCell << " ";
-    outStream << segmentData.cell << " ";
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    outStream << idx << " ";
+    outStream << cell << " ";
     outStream << numActivePotentialSynapsesForApicalSegment_[segment.flatIdx]
               << " ";
   }
@@ -1398,10 +1418,16 @@ void ExtendedTemporalMemory::write(ExtendedTemporalMemoryProto::Builder& proto) 
     proto.initActiveBasalSegmentOverlaps(activeBasalSegments_.size());
   for (UInt i = 0; i < activeBasalSegments_.size(); ++i)
   {
-    Segment segment = activeBasalSegments_[i];
-    const SegmentData& segmentData = basalConnections.dataForSegment(segment);
-    activeBasalSegmentOverlaps[i].setCell(segmentData.cell);
-    activeBasalSegmentOverlaps[i].setSegment(segmentData.idxOnCell);
+    const Segment segment = activeBasalSegments_[i];
+    const CellIdx cell = basalConnections.cellForSegment(segment);
+    const vector<Segment>& segments = basalConnections.segmentsForCell(cell);
+
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    activeBasalSegmentOverlaps[i].setCell(cell);
+    activeBasalSegmentOverlaps[i].setSegment(idx);
     activeBasalSegmentOverlaps[i].setOverlap(
       numActiveConnectedSynapsesForBasalSegment_[segment.flatIdx]);
   }
@@ -1410,10 +1436,16 @@ void ExtendedTemporalMemory::write(ExtendedTemporalMemoryProto::Builder& proto) 
     proto.initMatchingBasalSegmentOverlaps(matchingBasalSegments_.size());
   for (UInt i = 0; i < matchingBasalSegments_.size(); ++i)
   {
-    Segment segment = matchingBasalSegments_[i];
-    const SegmentData& segmentData = basalConnections.dataForSegment(segment);
-    matchingBasalSegmentOverlaps[i].setCell(segmentData.cell);
-    matchingBasalSegmentOverlaps[i].setSegment(segmentData.idxOnCell);
+    const Segment segment = matchingBasalSegments_[i];
+    const CellIdx cell = basalConnections.cellForSegment(segment);
+    const vector<Segment>& segments = basalConnections.segmentsForCell(cell);
+
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    matchingBasalSegmentOverlaps[i].setCell(cell);
+    matchingBasalSegmentOverlaps[i].setSegment(idx);
     matchingBasalSegmentOverlaps[i].setOverlap(
       numActivePotentialSynapsesForBasalSegment_[segment.flatIdx]);
   }
@@ -1423,9 +1455,15 @@ void ExtendedTemporalMemory::write(ExtendedTemporalMemoryProto::Builder& proto) 
   for (UInt i = 0; i < activeApicalSegments_.size(); ++i)
   {
     Segment segment = activeApicalSegments_[i];
-    const SegmentData& segmentData = apicalConnections.dataForSegment(segment);
-    activeApicalSegmentOverlaps[i].setCell(segmentData.cell);
-    activeApicalSegmentOverlaps[i].setSegment(segmentData.idxOnCell);
+    const CellIdx cell = apicalConnections.cellForSegment(segment);
+    const vector<Segment>& segments = apicalConnections.segmentsForCell(cell);
+
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    activeApicalSegmentOverlaps[i].setCell(cell);
+    activeApicalSegmentOverlaps[i].setSegment(idx);
     activeApicalSegmentOverlaps[i].setOverlap(
       numActiveConnectedSynapsesForApicalSegment_[segment.flatIdx]);
   }
@@ -1435,9 +1473,15 @@ void ExtendedTemporalMemory::write(ExtendedTemporalMemoryProto::Builder& proto) 
   for (UInt i = 0; i < matchingApicalSegments_.size(); ++i)
   {
     Segment segment = matchingApicalSegments_[i];
-    const SegmentData& segmentData = apicalConnections.dataForSegment(segment);
-    matchingApicalSegmentOverlaps[i].setCell(segmentData.cell);
-    matchingApicalSegmentOverlaps[i].setSegment(segmentData.idxOnCell);
+    const CellIdx cell = apicalConnections.cellForSegment(segment);
+    const vector<Segment>& segments = apicalConnections.segmentsForCell(cell);
+
+    SegmentIdx idx = std::distance(
+      segments.begin(),
+      std::find(segments.begin(), segments.end(), segment));
+
+    matchingApicalSegmentOverlaps[i].setCell(cell);
+    matchingApicalSegmentOverlaps[i].setSegment(idx);
     matchingApicalSegmentOverlaps[i].setOverlap(
       numActivePotentialSynapsesForApicalSegment_[segment.flatIdx]);
   }

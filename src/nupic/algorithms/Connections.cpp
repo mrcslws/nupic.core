@@ -56,6 +56,8 @@ void Connections::initialize(CellIdx numCells,
   cells_ = vector<CellData>(numCells);
   maxSegmentsPerCell_ = maxSegmentsPerCell;
   maxSynapsesPerSegment_ = maxSynapsesPerSegment;
+  nextSegmentOrdinal_ = 0;
+  nextSynapseOrdinal_ = 0;
   iteration_ = 0;
   nextEventToken_ = 0;
 }
@@ -91,6 +93,7 @@ Segment Connections::createSegment(CellIdx cell)
   {
     segment.flatIdx = segments_.size();
     segments_.push_back(SegmentData());
+    segmentOrdinals_.push_back(0);
   }
 
   SegmentData& segmentData = segments_[segment.flatIdx];
@@ -98,7 +101,7 @@ Segment Connections::createSegment(CellIdx cell)
   segmentData.lastUsedIteration = iteration_;
 
   CellData& cellData = cells_[cell];
-  segmentData.idxOnCell = cellData.segments.size();
+  segmentOrdinals_[segment] = nextSegmentOrdinal_++;
   cellData.segments.push_back(segment);
 
   for (auto h : eventHandlers_)
@@ -130,6 +133,7 @@ Synapse Connections::createSynapse(Segment segment,
   {
     synapse.flatIdx = synapses_.size();
     synapses_.push_back(SynapseData());
+    synapseOrdinals_.push_back(0);
   }
 
   SynapseData& synapseData = synapses_[synapse];
@@ -138,7 +142,7 @@ Synapse Connections::createSynapse(Segment segment,
   synapseData.permanence = permanence;
 
   SegmentData& segmentData = segments_[segment];
-  synapseData.idxOnSegment = segmentData.synapses.size();
+  synapseOrdinals_[synapse] = nextSynapseOrdinal_++;
   segmentData.synapses.push_back(synapse);
 
   synapsesForPresynapticCell_[presynapticCell].push_back(synapse);
@@ -201,14 +205,14 @@ void Connections::destroySegment(Segment segment)
   }
   segmentData.synapses.clear();
 
-  // Remove the segment from the cell's list, and shift the subsequent indices.
   CellData& cellData = cells_[segmentData.cell];
-  cellData.segments.erase(cellData.segments.begin() + segmentData.idxOnCell);
-  for (auto shifted = cellData.segments.begin() + segmentData.idxOnCell;
-       shifted != cellData.segments.end(); shifted++)
-  {
-    segments_[*shifted].idxOnCell--;
-  }
+  cellData.segments.erase(
+    std::lower_bound(cellData.segments.begin(), cellData.segments.end(),
+                     segment,
+                     [&](Segment a, Segment b)
+                     {
+                       return segmentOrdinals_[a] < segmentOrdinals_[b];
+                     }));
 
   destroyedSegments_.push_back(segment);
 }
@@ -223,17 +227,14 @@ void Connections::destroySynapse(Synapse synapse)
 
   removeSynapseFromPresynapticMap_(synapse);
 
-  // Remove the synapse from the segment's list, and shift the subsequent
-  // indices.
-  const SynapseData& synapseData = synapses_[synapse];
-  SegmentData& segmentData = segments_[synapseData.segment];
-  segmentData.synapses.erase(segmentData.synapses.begin() +
-                             synapseData.idxOnSegment);
-  for (auto shifted = segmentData.synapses.begin() + synapseData.idxOnSegment;
-       shifted != segmentData.synapses.end(); shifted++)
-  {
-    synapses_[*shifted].idxOnSegment--;
-  }
+  SegmentData& segmentData = segments_[synapses_[synapse].segment];
+  segmentData.synapses.erase(
+    std::lower_bound(segmentData.synapses.begin(), segmentData.synapses.end(),
+                     synapse,
+                     [&](Synapse a, Synapse b)
+                     {
+                       return synapseOrdinals_[a] < synapseOrdinals_[b];
+                     }));
 
   destroyedSynapses_.push_back(synapse);
 }
@@ -308,7 +309,7 @@ bool Connections::compareSegments(Segment a, Segment b) const
   }
   else
   {
-    return aData.idxOnCell < bData.idxOnCell;
+    return segmentOrdinals_[a] < segmentOrdinals_[b];
   }
 }
 
@@ -546,9 +547,9 @@ void Connections::load(std::istream& inStream)
         if (!destroyedSegment)
         {
           segment.flatIdx = segments_.size();
-          segmentData.idxOnCell = cellData.segments.size();
           cellData.segments.push_back(segment);
           segments_.push_back(segmentData);
+          segmentOrdinals_.push_back(nextSegmentOrdinal_++);
         }
       }
 
@@ -574,9 +575,9 @@ void Connections::load(std::istream& inStream)
           SegmentData& segmentData = segments_[segment];
 
           Synapse synapse = {(UInt32)synapses_.size()};
-          synapseData.idxOnSegment = segmentData.synapses.size();
           segmentData.synapses.push_back(synapse);
           synapses_.push_back(synapseData);
+          synapseOrdinals_.push_back(nextSynapseOrdinal_++);
 
           synapsesForPresynapticCell_[synapseData.presynapticCell].push_back(
             synapse);
@@ -620,11 +621,11 @@ void Connections::read(ConnectionsProto::Reader& proto)
       {
         const SegmentData segmentData = {vector<Synapse>(),
                                          protoSegments[j].getLastUsedIteration(),
-                                         cell,
-                                         (SegmentIdx)cellData.segments.size()};
+                                         cell};
         segment.flatIdx = segments_.size();
         cellData.segments.push_back(segment);
         segments_.push_back(segmentData);
+        segmentOrdinals_.push_back(nextSegmentOrdinal_++);
       }
 
       SegmentData& segmentData = segments_[segment];
@@ -641,10 +642,10 @@ void Connections::read(ConnectionsProto::Reader& proto)
         CellIdx presynapticCell = protoSynapses[k].getPresynapticCell();
         SynapseData synapseData = {presynapticCell,
                                    protoSynapses[k].getPermanence(),
-                                   segment,
-                                   (SynapseIdx)segmentData.synapses.size()};
+                                   segment};
         Synapse synapse = {(UInt32)synapses_.size()};
         synapses_.push_back(synapseData);
+        synapseOrdinals_.push_back(nextSynapseOrdinal_++);
         segmentData.synapses.push_back(synapse);
 
         synapsesForPresynapticCell_[presynapticCell].push_back(synapse);
@@ -706,8 +707,7 @@ bool Connections::operator==(const Connections &other) const
 
       if (segmentData.synapses.size() != otherSegmentData.synapses.size() ||
           segmentData.lastUsedIteration != otherSegmentData.lastUsedIteration ||
-          segmentData.cell != otherSegmentData.cell ||
-          segmentData.idxOnCell != otherSegmentData.idxOnCell)
+          segmentData.cell != otherSegmentData.cell)
       {
         return false;
       }
@@ -720,8 +720,7 @@ bool Connections::operator==(const Connections &other) const
         const SynapseData& otherSynapseData = other.synapses_[otherSynapse];
 
         if (synapseData.presynapticCell != otherSynapseData.presynapticCell ||
-            synapseData.permanence != otherSynapseData.permanence ||
-            synapseData.idxOnSegment != otherSynapseData.idxOnSegment)
+            synapseData.permanence != otherSynapseData.permanence)
         {
           return false;
         }
@@ -733,9 +732,11 @@ bool Connections::operator==(const Connections &other) const
     }
   }
 
-  if (synapsesForPresynapticCell_.size() != other.synapsesForPresynapticCell_.size()) return false;
+  if (synapsesForPresynapticCell_.size() !=
+      other.synapsesForPresynapticCell_.size()) return false;
 
-  for (auto i = synapsesForPresynapticCell_.begin(); i != synapsesForPresynapticCell_.end(); ++i)
+  for (auto i = synapsesForPresynapticCell_.begin();
+       i != synapsesForPresynapticCell_.end(); ++i)
   {
     const vector<Synapse>& synapses = i->second;
     const vector<Synapse>& otherSynapses =
@@ -753,9 +754,7 @@ bool Connections::operator==(const Connections &other) const
       const SegmentData& otherSegmentData =
         other.segments_[otherSynapseData.segment];
 
-      if (segmentData.cell != otherSegmentData.cell ||
-          segmentData.idxOnCell != otherSegmentData.idxOnCell ||
-          synapseData.idxOnSegment != otherSynapseData.idxOnSegment)
+      if (segmentData.cell != otherSegmentData.cell)
       {
         return false;
       }
