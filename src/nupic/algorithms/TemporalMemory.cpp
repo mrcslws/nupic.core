@@ -216,11 +216,11 @@ static void adaptSegment(
   Permanence permanenceIncrement,
   Permanence permanenceDecrement)
 {
-  vector<Synapse> synapses = connections.synapsesForSegment(segment);
+  const vector<Synapse>& synapses = connections.synapsesForSegment(segment);
 
-  for (Synapse synapse : synapses)
+  for (SynapseIdx i = 0; i < synapses.size();)
   {
-    const SynapseData synapseData = connections.dataForSynapse(synapse);
+    const SynapseData& synapseData = connections.dataForSynapse(synapses[i]);
     const bool isActive =
       std::binary_search(prevActiveCells.begin(), prevActiveCells.end(),
                          synapseData.presynapticCell);
@@ -240,15 +240,17 @@ static void adaptSegment(
 
     if (permanence < EPSILON)
     {
-      connections.destroySynapse(synapse);
+      connections.destroySynapse(synapses[i]);
+      // Synapses vector is modified in-place.
     }
     else
     {
-      connections.updateSynapsePermanence(synapse, permanence);
+      connections.updateSynapsePermanence(synapses[i], permanence);
+      i++;
     }
   }
 
-  if (connections.numSynapses(segment) == 0)
+  if (synapses.size() == 0)
   {
     connections.destroySegment(segment);
   }
@@ -314,7 +316,7 @@ static void activatePredictedColumn(
   auto activeSegment = columnActiveSegmentsBegin;
   do
   {
-    const CellIdx cell = activeSegment->cell;
+    const CellIdx cell = connections.cellForSegment(*activeSegment);
     activeCells.push_back(cell);
     winnerCells.push_back(cell);
 
@@ -339,7 +341,7 @@ static void activatePredictedColumn(
         }
       }
     } while (++activeSegment != columnActiveSegmentsEnd &&
-             activeSegment->cell == cell);
+             connections.cellForSegment(*activeSegment) == cell);
   } while (activeSegment != columnActiveSegmentsEnd);
 }
 
@@ -378,7 +380,7 @@ static void burstColumn(
     });
 
   const CellIdx winnerCell = (bestMatchingSegment != columnMatchingSegmentsEnd)
-    ? bestMatchingSegment->cell
+    ? connections.cellForSegment(*bestMatchingSegment)
     : getLeastUsedCell(rng, column, connections, cellsPerColumn);
 
   winnerCells.push_back(winnerCell);
@@ -452,8 +454,8 @@ void TemporalMemory::activateCells(
   const vector<CellIdx> prevActiveCells = std::move(activeCells_);
   const vector<CellIdx> prevWinnerCells = std::move(winnerCells_);
 
-  const auto columnForSegment =
-    [&](Segment segment) { return segment.cell / cellsPerColumn_; };
+  const auto columnForSegment = [&](Segment segment)
+    { return connections.cellForSegment(segment) / cellsPerColumn_; };
 
   for (auto& columnData : groupBy(activeColumns, identity<UInt>,
                                   activeSegments_, columnForSegment,
@@ -530,7 +532,11 @@ void TemporalMemory::activateDendrites(bool learn)
       activeSegments_.push_back(connections.segmentForFlatIdx(i));
     }
   }
-  std::sort(activeSegments_.begin(), activeSegments_.end());
+  std::sort(activeSegments_.begin(), activeSegments_.end(),
+            [&](Segment a, Segment b)
+            {
+              return connections.compareSegments(a, b);
+            });
 
   // Matching segments, potential synapses.
   matchingSegments_.clear();
@@ -541,7 +547,11 @@ void TemporalMemory::activateDendrites(bool learn)
       matchingSegments_.push_back(connections.segmentForFlatIdx(i));
     }
   }
-  std::sort(matchingSegments_.begin(), matchingSegments_.end());
+  std::sort(matchingSegments_.begin(), matchingSegments_.end(),
+            [&](Segment a, Segment b)
+            {
+              return connections.compareSegments(a, b);
+            });
 
   if (learn)
   {
@@ -618,10 +628,11 @@ vector<CellIdx> TemporalMemory::getPredictiveCells() const
   for (auto segment = activeSegments_.begin();
        segment != activeSegments_.end(); segment++)
   {
+    CellIdx cell = connections.cellForSegment(*segment);
     if (segment == activeSegments_.begin() ||
-        segment->cell != predictiveCells.back())
+        cell != predictiveCells.back())
     {
-      predictiveCells.push_back(segment->cell);
+      predictiveCells.push_back(cell);
     }
   }
 
@@ -641,10 +652,11 @@ vector<CellIdx> TemporalMemory::getMatchingCells() const
        segment != matchingSegments_.end();
        segment++)
   {
+    CellIdx cell = connections.cellForSegment(*segment);
     if (segment == matchingSegments_.begin() ||
-        segment->cell != matchingCells.back())
+        cell != matchingCells.back())
     {
-      matchingCells.push_back(segment->cell);
+      matchingCells.push_back(cell);
     }
   }
 
@@ -834,8 +846,10 @@ void TemporalMemory::save(ostream& outStream) const
   outStream << activeSegments_.size() << " ";
   for (Segment segment : activeSegments_)
   {
-    outStream << segment.idx << " ";
-    outStream << segment.cell << " ";
+    const SegmentData& segmentData = connections.dataForSegment(segment);
+
+    outStream << segmentData.idxOnCell << " ";
+    outStream << segmentData.cell << " ";
     outStream << numActiveConnectedSynapsesForSegment_[segment.flatIdx] << " ";
   }
   outStream << endl;
@@ -843,8 +857,10 @@ void TemporalMemory::save(ostream& outStream) const
   outStream << matchingSegments_.size() << " ";
   for (Segment segment : matchingSegments_)
   {
-    outStream << segment.idx << " ";
-    outStream << segment.cell << " ";
+    const SegmentData& segmentData = connections.dataForSegment(segment);
+
+    outStream << segmentData.idxOnCell << " ";
+    outStream << segmentData.cell << " ";
     outStream << numActivePotentialSynapsesForSegment_[segment.flatIdx] << " ";
   }
   outStream << endl;
@@ -888,8 +904,10 @@ void TemporalMemory::write(TemporalMemoryProto::Builder& proto) const
   for (UInt i = 0; i < activeSegments_.size(); ++i)
   {
     const Segment segment = activeSegments_[i];
-    activeSegmentOverlaps[i].setCell(segment.cell);
-    activeSegmentOverlaps[i].setSegment(segment.idx);
+    const SegmentData& segmentData = connections.dataForSegment(segment);
+
+    activeSegmentOverlaps[i].setCell(segmentData.cell);
+    activeSegmentOverlaps[i].setSegment(segmentData.idxOnCell);
     activeSegmentOverlaps[i].setOverlap(
       numActiveConnectedSynapsesForSegment_[segment.flatIdx]);
   }
@@ -906,8 +924,10 @@ void TemporalMemory::write(TemporalMemoryProto::Builder& proto) const
   for (UInt i = 0; i < matchingSegments_.size(); ++i)
   {
     const Segment segment = matchingSegments_[i];
-    matchingSegmentOverlaps[i].setCell(segment.cell);
-    matchingSegmentOverlaps[i].setSegment(segment.idx);
+    const SegmentData& segmentData = connections.dataForSegment(segment);
+
+    matchingSegmentOverlaps[i].setCell(segmentData.cell);
+    matchingSegmentOverlaps[i].setSegment(segmentData.idxOnCell);
     matchingSegmentOverlaps[i].setOverlap(
       numActivePotentialSynapsesForSegment_[segment.flatIdx]);
   }
