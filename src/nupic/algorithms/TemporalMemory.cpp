@@ -264,36 +264,36 @@ static void growSynapses(
   const vector<CellIdx>& prevWinnerCells,
   Permanence initialPermanence)
 {
-  vector<CellIdx> candidates(prevWinnerCells.begin(), prevWinnerCells.end());
+  // It's possible to optimize this, swapping candidates to the end as
+  // they're used. But this is awkward to mimic in other
+  // implementations, especially because it requires iterating over
+  // the existing synapses in a particular order.
 
-  // Instead of erasing candidates, swap them to the end, and remember where the
-  // "eligible" candidates end.
-  auto eligibleEnd = candidates.end();
+  vector<CellIdx> candidates(prevWinnerCells.begin(), prevWinnerCells.end());
+  NTA_ASSERT(std::is_sorted(candidates.begin(), candidates.end()));
 
   // Remove cells that are already synapsed on by this segment
   for (Synapse synapse : connections.synapsesForSegment(segment))
   {
     CellIdx presynapticCell =
       connections.dataForSynapse(synapse).presynapticCell;
-    auto ineligible = find(candidates.begin(), eligibleEnd, presynapticCell);
-    if (ineligible != eligibleEnd)
+    auto ineligible = std::lower_bound(candidates.begin(), candidates.end(),
+                                       presynapticCell);
+    if (ineligible != candidates.end() && *ineligible == presynapticCell)
     {
-      eligibleEnd--;
-      std::iter_swap(ineligible, eligibleEnd);
+      candidates.erase(ineligible);
     }
   }
 
-  const UInt32 nActual =
-    std::min(nDesiredNewSynapses,
-             (UInt32)std::distance(candidates.begin(), eligibleEnd));
+  const UInt32 nActual = std::min(nDesiredNewSynapses,
+                                  (UInt32)candidates.size());
 
   // Pick nActual cells randomly.
   for (UInt32 c = 0; c < nActual; c++)
   {
-    size_t i = rng.getUInt32(std::distance(candidates.begin(), eligibleEnd));
+    size_t i = rng.getUInt32(candidates.size());
     connections.createSynapse(segment, candidates[i], initialPermanence);
-    eligibleEnd--;
-    std::swap(candidates[i], *eligibleEnd);
+    candidates.erase(candidates.begin() + i);
   }
 }
 

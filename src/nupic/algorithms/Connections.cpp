@@ -206,13 +206,19 @@ void Connections::destroySegment(Segment segment)
   segmentData.synapses.clear();
 
   CellData& cellData = cells_[segmentData.cell];
-  cellData.segments.erase(
+
+  const auto segmentOnCell =
     std::lower_bound(cellData.segments.begin(), cellData.segments.end(),
                      segment,
                      [&](Segment a, Segment b)
                      {
                        return segmentOrdinals_[a] < segmentOrdinals_[b];
-                     }));
+                     });
+
+  NTA_ASSERT(segmentOnCell != cellData.segments.end());
+  NTA_ASSERT(*segmentOnCell == segment);
+
+  cellData.segments.erase(segmentOnCell);
 
   destroyedSegments_.push_back(segment);
 }
@@ -228,13 +234,18 @@ void Connections::destroySynapse(Synapse synapse)
   removeSynapseFromPresynapticMap_(synapse);
 
   SegmentData& segmentData = segments_[synapses_[synapse].segment];
-  segmentData.synapses.erase(
+  const auto synapseOnSegment =
     std::lower_bound(segmentData.synapses.begin(), segmentData.synapses.end(),
                      synapse,
                      [&](Synapse a, Synapse b)
                      {
                        return synapseOrdinals_[a] < synapseOrdinals_[b];
-                     }));
+                     });
+
+  NTA_ASSERT(synapseOnSegment != segmentData.synapses.end());
+  NTA_ASSERT(*synapseOnSegment == synapse);
+
+  segmentData.synapses.erase(synapseOnSegment);
 
   destroyedSynapses_.push_back(synapse);
 }
