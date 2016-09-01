@@ -959,23 +959,39 @@ namespace {
 
     ASSERT_EQ(2, tm.basalConnections.numSegments(9));
 
+    set<CellIdx> oldPresynaptic;
+    for (Synapse synapse : tm.basalConnections.synapsesForSegment(oldestSegment))
+    {
+      oldPresynaptic.insert(
+        tm.basalConnections.dataForSynapse(synapse).presynapticCell);
+    }
+
     tm.reset();
     tm.compute(3, previousActiveColumns3);
     tm.compute(1, activeColumns);
 
     ASSERT_EQ(2, tm.basalConnections.numSegments(9));
 
-    vector<Synapse> synapses = tm.basalConnections.synapsesForSegment(oldestSegment);
-    ASSERT_EQ(3, synapses.size());
-    set<CellIdx> presynapticCells;
-    for (Synapse synapse : synapses)
-    {
-      SynapseData synapseData = tm.basalConnections.dataForSynapse(synapse);
-      presynapticCells.insert(synapseData.presynapticCell);
-    }
+    // Verify none of the segments are connected to the cells the old segment
+    // was connected to.
 
-    const set<CellIdx> expected = {6, 7, 8};
-    EXPECT_EQ(expected, presynapticCells);
+    for (Segment segment : tm.basalConnections.segmentsForCell(9))
+    {
+      set<CellIdx> newPresynaptic;
+      for (Synapse synapse : tm.basalConnections.synapsesForSegment(segment))
+      {
+        newPresynaptic.insert(
+          tm.basalConnections.dataForSynapse(synapse).presynapticCell);
+      }
+
+      vector<CellIdx> intersection;
+      std::set_intersection(oldPresynaptic.begin(), oldPresynaptic.end(),
+                            newPresynaptic.begin(), newPresynaptic.end(),
+                            std::back_inserter(intersection));
+
+      vector<CellIdx> expected = {};
+      EXPECT_EQ(expected, intersection);
+    }
   }
 
   /**
