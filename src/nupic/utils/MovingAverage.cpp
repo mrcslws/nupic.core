@@ -32,53 +32,52 @@ using namespace::nupic;
 using namespace nupic::util;
 
 
-MovingAverage::MovingAverage(UInt wSize, const vector<Real32>& historicalValues)
-    : windowSize_(wSize)
+MovingAverage::MovingAverage(UInt wSize, const vector<Real>& historicalValues)
+    : slidingWindow_(wSize, begin(historicalValues), end(historicalValues))
 {
-  if (historicalValues.size() != 0)
-  {
-    copy(
-      historicalValues.begin() + historicalValues.size() - wSize,
-      historicalValues.end(),
-      back_inserter(slidingWindow_));
-  }
-  total_ = Real32(accumulate(slidingWindow_.begin(), slidingWindow_.end(), 0));
+ const std::vector<Real>&  window = slidingWindow_.getData();
+  total_ = Real(accumulate(begin(window), end(window), 0));
 }
 
 
-MovingAverage::MovingAverage(UInt wSize) : windowSize_(wSize), total_(0) {}
+MovingAverage::MovingAverage(UInt wSize) : 
+  slidingWindow_(wSize), total_(0) {}
 
 
-Real32 MovingAverage::compute(Real32 newVal)
+MovingAverage::MovingAverage(const SlidingWindow<Real>& internalSlidingWindow) :
+  slidingWindow_(internalSlidingWindow) {
+ const std::vector<Real>&  window = slidingWindow_.getData();
+  total_ = Real(accumulate(begin(window), end(window), 0));
+}
+
+
+Real MovingAverage::compute(Real newVal)
 {
-  if (windowSize_ == slidingWindow_.size())
-  {
-    total_ -= slidingWindow_.front();
-    slidingWindow_.erase(slidingWindow_.begin()); // pop front element
+  Real droppedVal = 0.0;
+  bool hasDropped = slidingWindow_.append(newVal, droppedVal);
+  if(hasDropped) {
+    total_ -= droppedVal;
   }
-
-  slidingWindow_.push_back(newVal);
   total_ += newVal;
   return getCurrentAvg();
 }
 
 
-std::vector<Real32> MovingAverage::getSlidingWindow() const
+std::vector<Real> MovingAverage::getData() const
 {
-  return slidingWindow_;
+  return slidingWindow_.getData();
 }
 
 
-Real32 MovingAverage::getCurrentAvg() const
+Real MovingAverage::getCurrentAvg() const
 {
-  return Real32(total_) / Real32(slidingWindow_.size());
+  return Real(total_) / Real(slidingWindow_.size());
 }
 
 
 bool MovingAverage::operator==(const MovingAverage& r2) const
 {
-  return (windowSize_ == r2.windowSize_ &&
-          slidingWindow_ == r2.slidingWindow_ &&
+  return (slidingWindow_ == r2.slidingWindow_ &&
           total_ == r2.total_);
 }
 
@@ -89,7 +88,7 @@ bool MovingAverage::operator!=(const MovingAverage& r2) const
 }
 
 
-Real32 MovingAverage::getTotal() const
+Real MovingAverage::getTotal() const
 {
   return total_;
 }
