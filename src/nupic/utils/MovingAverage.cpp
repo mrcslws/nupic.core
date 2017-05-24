@@ -35,18 +35,18 @@ using namespace nupic::util;
 MovingAverage::MovingAverage(UInt wSize, const vector<Real>& historicalValues)
     : slidingWindow_(wSize, begin(historicalValues), end(historicalValues))
 {
- const std::vector<Real>&  window = slidingWindow_.getData();
+  const std::vector<Real>&  window = slidingWindow_.getData();
   total_ = Real(accumulate(begin(window), end(window), 0));
 }
 
 
-MovingAverage::MovingAverage(UInt wSize) : 
+MovingAverage::MovingAverage(UInt wSize) :
   slidingWindow_(wSize), total_(0) {}
 
 
 MovingAverage::MovingAverage(const SlidingWindow<Real>& internalSlidingWindow) :
   slidingWindow_(internalSlidingWindow) {
- const std::vector<Real>&  window = slidingWindow_.getData();
+  const std::vector<Real>&  window = slidingWindow_.getData();
   total_ = Real(accumulate(begin(window), end(window), 0));
 }
 
